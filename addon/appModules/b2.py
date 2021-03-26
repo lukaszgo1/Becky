@@ -287,7 +287,7 @@ class AppModule(appModuleHandler.AppModule):
 		if (
 			obj.windowClassName == 'SysListView32'
 			and obj.role == controlTypes.ROLE_LISTITEM
-			and obj.windowControlID == 59648
+			and obj.windowControlID in (59648, 59649, 59664)
 		):
 			clsList.insert(0, Message)
 			return
