@@ -137,7 +137,7 @@ Remove it from those which do not have children.
 			return re.match(unreadInfoFinder, screenContent).group(1)
 		else:
 			if screenContent != self.name:
-				from  logHandler import log
+				from logHandler import log
 				log.info("Failed to get proper displaytext. Got: {}".format(screenContent))
 			return None
 
@@ -202,7 +202,6 @@ class Message(ListItem):
 	POSSIBLE_ENCODINGS = ("utf8", locale.getpreferredencoding(), "shift_jis")
 
 	def _getColumnContentRaw(self, index):
-		from logHandler import log
 		buffer = None
 		processHandle = self.processHandle
 		internalItem = winKernel.virtualAllocEx(
@@ -237,7 +236,6 @@ class Message(ListItem):
 				)
 				if len:
 					winKernel.readProcessMemory(processHandle, internalItem, byref(item), sizeof(self.LVITEM), None)
-					log.info(len)
 					buffer = create_string_buffer(len)
 					winKernel.readProcessMemory(processHandle, item.pszText, buffer, sizeof(buffer), None)
 			finally:
@@ -245,15 +243,11 @@ class Message(ListItem):
 		finally:
 			winKernel.virtualFreeEx(processHandle, internalItem, 0, winKernel.MEM_RELEASE)
 		if buffer:
-# 			from logHandler import log
-# 			log.info(";".join([str(ord(char)) for char in buffer.value]))
 			for encoding in self.POSSIBLE_ENCODINGS:
 				try:
 					return buffer.value.decode(encoding)
 				except UnicodeDecodeError:
 					continue
-# 			from logHandler import log
-# 			log.info(";".join([str(ord(char)) for char in buffer.value]))
 			return buffer.decode("unicode_escape")
 		else:
 			return None
