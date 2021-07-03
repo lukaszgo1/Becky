@@ -7,7 +7,6 @@ import appModuleHandler
 from colors import RGB
 import controlTypes
 from displayModel import DisplayModelTextInfo, EditableTextDisplayModelTextInfo
-import eventHandler
 import locationHelper
 import mouseHandler
 import oleacc
@@ -54,7 +53,7 @@ class DanaTextInfo(EditableTextDisplayModelTextInfo):
 		try:
 			STRING_TYPE = __builtins__["basestring"]
 			log.info(STRING_TYPE)
-		except KeyError as k:
+		except KeyError:
 			STRING_TYPE = str
 		fields = self._storyFieldsAndRects[0]
 		startOffset = None
