@@ -81,10 +81,8 @@ class DanaTextInfo(EditableTextDisplayModelTextInfo):
 	minHorizontalWhitespace = 10
 
 	def _getSelectionOffsets(self):
-		from logHandler import log
 		try:
 			STRING_TYPE = __builtins__["basestring"]
-			log.info(STRING_TYPE)
 		except KeyError:
 			STRING_TYPE = str
 		fields = self._storyFieldsAndRects[0]
