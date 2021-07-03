@@ -12,7 +12,7 @@ import mouseHandler
 import oleacc
 from NVDAObjects.behaviors import EditableTextWithoutAutoSelectDetection
 from NVDAObjects.IAccessible.sysListView32 import ListItem, CBEMAXSTRLEN, LVIF_TEXT, LVIF_COLUMNS
-from NVDAObjects.IAccessible import MenuItem
+from NVDAObjects.IAccessible import IAccessible, MenuItem
 from NVDAObjects.IAccessible.sysTreeView32 import TreeViewItem
 from NVDAObjects.window import Window, DisplayModelEditableText
 from scriptHandler import script
@@ -24,18 +24,50 @@ import winKernel
 LVM_GETITEMTEXTA = 4141
 
 
+class NoUnreadInfo(Exception):
+
+	pass
+
+
+class StatusBarNotVisible(Exception):
+
+	pass
+
+
 def getUnreadTotalCount():
 	""" Returns unread vs total count of a messages in a current folder. """
 	if api.getStatusBar() is None:
-		return "NoStatusBar"
+		raise StatusBarNotVisible
 	unreadInfo = ''
 	for child in api.getStatusBar().children:
 		if child.name is not None and child.name.startswith('Unread:'):
 			unreadInfo = child.name
 			break
 	if unreadInfo == '':
-		return "noUnreadCount"
+		raise NoUnreadInfo
 	return int(unreadInfo.split()[1]), int(unreadInfo.split()[-1])
+
+
+class BeckyMainFrame(IAccessible):
+
+	@script(
+		gesture="kb:NVDA+shift+U",
+		canPropagate=True
+	)
+	def script_unreadTotalInfo(self, gesture):
+		try:
+			result = getUnreadTotalCount()
+			if all(item == 0 for item in result):
+				msg = "Empty folder"
+			elif result[0] == 0:
+				msg = "%d total" % result[1]
+			else:
+				msg = "%d unread, %d total." % (result[0], result[1])
+		except StatusBarNotVisible:
+			msg = "Status bar is not visible. Perhaps it is  disabled in the view menu?"
+		except NoUnreadInfo:
+			msg = "Cannot locate unread info in the status bar"
+		ui.message(msg)
 
 
 class DanaTextInfo(EditableTextDisplayModelTextInfo):
@@ -284,6 +316,9 @@ class AppModule(appModuleHandler.AppModule):
 		):
 			clsList.insert(0, Message)
 			return
+		if obj.windowClassName == 'Becky2MainFrame' and obj.IAccessibleRole == oleacc.ROLE_SYSTEM_CLIENT:
+			clsList.insert(0, BeckyMainFrame)
+			return
 
 	def isInMainWindow(self):
 		return (
@@ -291,23 +326,3 @@ class AppModule(appModuleHandler.AppModule):
 			and api.getForegroundObject().name is not None
 			and api.getForegroundObject().name.endswith(' - Becky!')
 		)
-
-	@script(
-		gesture="kb:NVDA+shift+U",
-	)
-	def script_unreadTotalInfo(self, gesture):
-		if not self.isInMainWindow():
-			return
-		result = getUnreadTotalCount()
-		msg = ''
-		if result == "NoStatusBar":
-			msg = "Status bar is not visible. Perhaps it is  disabled in the view menu?"
-		elif result == "noUnreadCount":
-			msg = "Cannot locate unread info in the status bar"
-		elif all(item == 0 for item in result):
-			msg = "Empty folder"
-		elif result[0] == 0:
-			msg = "%d total" % result[1]
-		else:
-			msg = "%d unread, %d total." % (result[0], result[1])
-		ui.message(msg)
