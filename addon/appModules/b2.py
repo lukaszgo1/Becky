@@ -11,6 +11,7 @@ import locationHelper
 import mouseHandler
 import oleacc
 from NVDAObjects.behaviors import EditableTextWithoutAutoSelectDetection
+import NVDAObjects.IAccessible
 from NVDAObjects.IAccessible.sysListView32 import ListItem, CBEMAXSTRLEN, LVIF_TEXT, LVIF_COLUMNS
 from NVDAObjects.IAccessible import IAccessible, MenuItem
 from NVDAObjects.IAccessible.sysTreeView32 import TreeViewItem
@@ -19,6 +20,7 @@ from scriptHandler import script
 import textInfos
 import ui
 import watchdog
+import windowUtils
 import winUser
 import winKernel
 LVM_GETITEMTEXTA = 4141
@@ -36,10 +38,15 @@ class StatusBarNotVisible(Exception):
 
 def getUnreadTotalCount():
 	""" Returns unread vs total count of a messages in a current folder. """
-	if api.getStatusBar() is None:
+	try:
+		statusBarHandle = windowUtils.findDescendantWindow(
+			api.getForegroundObject().windowHandle, visible=True, className="msctls_statusbar32"
+		)
+	except LookupError:
 		raise StatusBarNotVisible
+	statusBarObj = NVDAObjects.IAccessible.getNVDAObjectFromEvent(statusBarHandle, winUser.OBJID_CLIENT, 0)
 	unreadInfo = ''
-	for child in api.getStatusBar().children:
+	for child in statusBarObj.children:
 		if child.name is not None and child.name.startswith('Unread:'):
 			unreadInfo = child.name
 			break
