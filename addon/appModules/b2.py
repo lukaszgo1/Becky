@@ -134,9 +134,37 @@ class DanaEdit(EditableTextWithoutAutoSelectDetection, Window):
 		pass
 
 	def _get_isReadOnly(self):
-		if self.windowControlID == 103 and self.parent and not self.parent.previous:
-			return False
-		return True
+		return self.windowControlID != 103 or api.getForegroundObject().windowClassName == "Becky2MainFrame"
+
+	@staticmethod
+	def _activateURLAtPos(pos):
+		oldMouseCoords = winUser.getCursorPos()
+		winUser.setCursorPos(pos.pointAtStart.x, pos.pointAtStart.y)
+		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTDOWN, 0, 0)
+		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTUP, 0, 0)
+		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTDOWN, 0, 0)
+		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTUP, 0, 0)
+		winUser.setCursorPos(*oldMouseCoords)
+
+	@script(
+		gesture="kb:enter"
+	)
+	def script_urlActivate(self, gesture):
+		if self.isReadOnly:
+			carretPos = self.makeTextInfo(textInfos.POSITION_CARET)
+			carretPos.expand(textInfos.UNIT_CHARACTER)
+			for field in carretPos.getTextWithFields():
+				if (
+					isinstance(field, textInfos.FieldCommand)
+					and field.command == "formatChange"
+					and field.field.get('color', None) == RGB(red=0, green=0, blue=192)
+				):
+					self._activateURLAtPos(carretPos)
+					return
+			ui.message("Not on a link")
+		else:
+			gesture.send()
+			return
 
 
 class FolderTreeViewItem(TreeViewItem):
@@ -324,10 +352,3 @@ class AppModule(appModuleHandler.AppModule):
 		if obj.windowClassName == 'Becky2MainFrame' and obj.IAccessibleRole == oleacc.ROLE_SYSTEM_CLIENT:
 			clsList.insert(0, BeckyMainFrame)
 			return
-
-	def isInMainWindow(self):
-		return (
-			api.getForegroundObject() is not None
-			and api.getForegroundObject().name is not None
-			and api.getForegroundObject().name.endswith(' - Becky!')
-		)
