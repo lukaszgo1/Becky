@@ -23,7 +23,13 @@ import watchdog
 import windowUtils
 import winUser
 import winKernel
+
+
+# Constants:
+
 LVM_GETITEMTEXTA = 4141
+
+BECKY_SCRIPT_CATEGORY = "Becky"
 
 
 class NoUnreadInfo(Exception):
@@ -59,7 +65,9 @@ class BeckyMainFrame(IAccessible):
 
 	@script(
 		gesture="kb:NVDA+shift+U",
-		canPropagate=True
+		canPropagate=True,
+		category=BECKY_SCRIPT_CATEGORY,
+		description="Reports amount of unread and all messages in the current folder"
 	)
 	def script_unreadTotalInfo(self, gesture):
 		try:
@@ -75,6 +83,34 @@ class BeckyMainFrame(IAccessible):
 		except NoUnreadInfo:
 			msg = "Cannot locate unread info in the status bar"
 		ui.message(msg)
+
+
+class BeckyComposeFrame(IAccessible):
+
+	@script(
+		gesture="kb:NVDA+shift+a",
+		canPropagate=True,
+		category=BECKY_SCRIPT_CATEGORY,
+		description="Moves focus to the list of attachments if it is visible"
+	)
+	def script_focusAttachmentsList(self, gesture):
+		attachmentsListFound = False
+		try:
+			attachmentsListHandle = windowUtils.findDescendantWindow(
+				api.getForegroundObject().windowHandle, visible=True, className="SysListView32", controlID=1002
+			)
+			attachmentsListObj = NVDAObjects.IAccessible.getNVDAObjectFromEvent(
+				attachmentsListHandle, winUser.OBJID_CLIENT, 0
+			)
+			if controlTypes.STATE_INVISIBLE in attachmentsListObj.parent.states:
+				attachmentsListFound = False
+			else:
+				attachmentsListFound = True
+				attachmentsListObj.firstChild.setFocus()
+		except LookupError:
+			attachmentsListFound = False
+		if not attachmentsListFound:
+			ui.message("Current message has no attachments")
 
 
 class DanaTextInfo(EditableTextDisplayModelTextInfo):
@@ -356,4 +392,7 @@ class AppModule(appModuleHandler.AppModule):
 			return
 		if obj.windowClassName == 'Becky2MainFrame' and obj.IAccessibleRole == oleacc.ROLE_SYSTEM_CLIENT:
 			clsList.insert(0, BeckyMainFrame)
+			return
+		if obj.windowClassName == 'Becky2ComposeFrame' and obj.IAccessibleRole == oleacc.ROLE_SYSTEM_CLIENT:
+			clsList.insert(0, BeckyComposeFrame)
 			return
