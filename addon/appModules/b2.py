@@ -146,6 +146,17 @@ class DanaEdit(EditableTextWithoutAutoSelectDetection, Window):
 		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTUP, 0, 0)
 		winUser.setCursorPos(*oldMouseCoords)
 
+	@staticmethod
+	def _isALink(pos):
+		for field in pos.getTextWithFields():
+			if (
+				isinstance(field, textInfos.FieldCommand)
+				and field.command == "formatChange"
+				and field.field.get('color', None) == RGB(red=0, green=0, blue=192)
+			):
+				return True
+		return False
+
 	@script(
 		gesture="kb:enter"
 	)
@@ -153,14 +164,8 @@ class DanaEdit(EditableTextWithoutAutoSelectDetection, Window):
 		if self.isReadOnly:
 			carretPos = self.makeTextInfo(textInfos.POSITION_CARET)
 			carretPos.expand(textInfos.UNIT_CHARACTER)
-			for field in carretPos.getTextWithFields():
-				if (
-					isinstance(field, textInfos.FieldCommand)
-					and field.command == "formatChange"
-					and field.field.get('color', None) == RGB(red=0, green=0, blue=192)
-				):
-					self._activateURLAtPos(carretPos)
-					return
+			if self._isALink(carretPos):
+				return self._activateURLAtPos(carretPos)
 			ui.message("Not on a link")
 		else:
 			gesture.send()
