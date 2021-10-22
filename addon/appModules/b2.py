@@ -32,6 +32,48 @@ LVM_GETITEMTEXTA = 4141
 BECKY_SCRIPT_CATEGORY = "Becky"
 
 
+class EnhancedGetter(object):
+
+	def __init__(self, modWithAttrs, baseAttrName, gettersToTry):
+		super(EnhancedGetter, self).__init__()
+		self.mod = modWithAttrs
+		self.baseAttrName = baseAttrName
+		self.gettersToTry = gettersToTry
+
+	def __getattr__(self, attrName):
+		for possibleGetter in self.gettersToTry:
+			try:
+				return possibleGetter(self.mod, self.baseAttrName, attrName)
+			except AttributeError:
+				continue
+		raise AttributeError("Attribute {} not found!".format(attrName))
+
+
+class ControlTypesCompatWrapper(object):
+
+	def __init__(self):
+		super(ControlTypesCompatWrapper, self).__init__()
+		self.Role = EnhancedGetter(
+			controlTypes,
+			"Role",
+			[
+				lambda mod, bName, name: getattr(mod, "{0}_{1}".format(bName.upper(), name)),
+				lambda mod, bName, name: getattr(getattr(mod, bName), name),
+			]
+		)
+		self.State = EnhancedGetter(
+			controlTypes,
+			"State",
+			[
+				lambda mod, bName, name: getattr(mod, "{0}_{1}".format(bName.upper(), name)),
+				lambda mod, bName, name: getattr(getattr(mod, bName), name),
+			]
+		)
+
+
+CTWRAPPER = ControlTypesCompatWrapper()
+
+
 class NoUnreadInfo(Exception):
 
 	pass
@@ -102,7 +144,7 @@ class BeckyComposeFrame(IAccessible):
 			attachmentsListObj = NVDAObjects.IAccessible.getNVDAObjectFromEvent(
 				attachmentsListHandle, winUser.OBJID_CLIENT, 0
 			)
-			if controlTypes.STATE_INVISIBLE in attachmentsListObj.parent.states:
+			if CTWRAPPER.State.INVISIBLE in attachmentsListObj.parent.states:
 				attachmentsListFound = False
 			else:
 				attachmentsListFound = True
@@ -163,7 +205,7 @@ class DanaEdit(EditableTextWithoutAutoSelectDetection, Window):
 	"""
 
 	TextInfo = DanaTextInfo
-	role = controlTypes.ROLE_EDITABLETEXT
+	role = CTWRAPPER.Role.EDITABLETEXT
 
 	def event_valueChange(self):
 		# Don't report value changes for editable text fields.
@@ -216,18 +258,18 @@ Remove it from those which do not have children.
 
 	def _get_states(self):
 		states = super(FolderTreeViewItem, self)._get_states()
-		if super(FolderTreeViewItem, self)._get_childCount() == 0 and controlTypes.STATE_EXPANDED in states:
-			states.remove(controlTypes.STATE_EXPANDED)
+		if super(FolderTreeViewItem, self)._get_childCount() == 0 and CTWRAPPER.State.EXPANDED in states:
+			states.remove(CTWRAPPER.State.EXPANDED)
 		return states
 
 	def _get_shouldAllowIAccessibleFocusEvent(self):
-		if controlTypes.STATE_SELECTABLE in self.states and controlTypes.STATE_SELECTED not in self.states:
+		if CTWRAPPER.State.SELECTABLE in self.states and CTWRAPPER.State.SELECTED not in self.states:
 			return False
 		return super(FolderTreeViewItem, self)._get_shouldAllowIAccessibleFocusEvent()
 
 	def _get_unreadInfo(self):
 		obj = self
-		while obj and obj.role != controlTypes.ROLE_TREEVIEW:
+		while obj and obj.role != CTWRAPPER.Role.TREEVIEW:
 			obj = obj.parent
 		rootTreeViewLocation = obj.location
 		rect = getattr(textInfos, "Rect", locationHelper.RectLTRB)(
@@ -268,13 +310,13 @@ class messagesContextMenu(MenuItem):
 		Discard it here and take care of it when creating a description.
 		"""
 		states = super(messagesContextMenu, self)._get_states()
-		if controlTypes.STATE_CHECKED in states:
-			states.remove(controlTypes.STATE_CHECKED)
+		if CTWRAPPER.State.CHECKED in states:
+			states.remove(CTWRAPPER.State.CHECKED)
 		return states
 
 	def _get_description(self):
 		states = MenuItem._get_states(self)
-		if controlTypes.STATE_CHECKED in states or self.IAccessibleChildID == 1:
+		if CTWRAPPER.State.CHECKED in states or self.IAccessibleChildID == 1:
 			return None
 		else:
 			return "From other account"
@@ -370,12 +412,12 @@ class AppModule(appModuleHandler.AppModule):
 			return
 		if(
 			obj.windowClassName == 'SysTreeView32'
-			and obj.role == controlTypes.ROLE_TREEVIEWITEM
+			and obj.role == CTWRAPPER.Role.TREEVIEWITEM
 			and obj.windowControlID == 1000
 		):
 			clsList.insert(0, FolderTreeViewItem)
 			return
-		if obj.windowClassName == '#32768' and obj.role == controlTypes.ROLE_MENUITEM:
+		if obj.windowClassName == '#32768' and obj.role == CTWRAPPER.Role.MENUITEM:
 			if (
 				obj.parent
 				and obj.parent.displayText
@@ -385,7 +427,7 @@ class AppModule(appModuleHandler.AppModule):
 				return
 		if (
 			obj.windowClassName == 'SysListView32'
-			and obj.role == controlTypes.ROLE_LISTITEM
+			and obj.role == CTWRAPPER.Role.LISTITEM
 			and obj.windowControlID in (59648, 59649, 59664)
 		):
 			clsList.insert(0, Message)
