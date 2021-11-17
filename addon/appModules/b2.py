@@ -400,13 +400,16 @@ class Message(ListItem):
 				getattr(textInfos, "Rect", locationHelper.RectLTRB)(left, top, left + width, top + height)
 			).text
 			COL_INCOMPLETE_END = "..."
-			displayedColContent = displayedColContent.split(" ")
-			if(
-				displayedColContent[-1] == COL_INCOMPLETE_END
-				or displayedColContent[-1].endswith(COL_INCOMPLETE_END)
-				or not displayedColContent[-1]
-			):
-				displayedColContent = displayedColContent[:-1]
+			if u'\uffff' in displayedColContent:
+				displayedColContent = []
+			else:
+				displayedColContent = displayedColContent.split(" ")
+				if(
+					displayedColContent[-1] == COL_INCOMPLETE_END
+					or displayedColContent[-1].endswith(COL_INCOMPLETE_END)
+					or not displayedColContent[-1]
+				):
+					displayedColContent = displayedColContent[:-1]
 			for encoding in self.POSSIBLE_ENCODINGS:
 				try:
 					decodedColContent = colContentBytes.decode(encoding)
@@ -415,14 +418,19 @@ class Message(ListItem):
 					continue
 				except UnicodeDecodeError:
 					continue
-			return colContentBytes.decode("unicode_escape")
+			try:
+				return colContentBytes.decode("utf8")
+			except UnicodeDecodeError:
+				return colContentBytes.decode("unicode_escape")
 		else:
 			return None
 
 	@staticmethod
 	def _displayedContentMatchesRetrieved(screenContent, programaticContent):
-		programaticContent = programaticContent.split(" ")[:len(screenContent)]
-		return screenContent == programaticContent
+		if screenContent:
+			programaticContent = programaticContent.split(" ")[:len(screenContent)]
+			return screenContent == programaticContent
+		return True
 
 
 class AppModule(appModuleHandler.AppModule):
