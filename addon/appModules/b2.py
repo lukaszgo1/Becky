@@ -8,6 +8,7 @@ from colors import RGB
 import controlTypes
 from displayModel import DisplayModelTextInfo, EditableTextDisplayModelTextInfo
 import locationHelper
+from logHandler import log
 import mouseHandler
 import oleacc
 from NVDAObjects.behaviors import EditableTextWithoutAutoSelectDetection
@@ -284,7 +285,6 @@ Remove it from those which do not have children.
 			return re.match(unreadInfoFinder, screenContent).group(1)
 		else:
 			if screenContent != self.name:
-				from logHandler import log
 				log.info("Failed to get proper displaytext. Got: {}".format(screenContent))
 			return None
 
@@ -346,7 +346,7 @@ class messagesContextMenu(MenuItem):
 
 class Message(ListItem):
 
-	POSSIBLE_ENCODINGS = ("utf8", locale.getpreferredencoding(), "shift_jis")
+	POSSIBLE_ENCODINGS = ("utf8", locale.getpreferredencoding(), "1251", "shift_jis")
 
 	def _getColumnContentRaw(self, index):
 		buffer = None
@@ -390,14 +390,39 @@ class Message(ListItem):
 		finally:
 			winKernel.virtualFreeEx(processHandle, internalItem, 0, winKernel.MEM_RELEASE)
 		if buffer:
+			colContentBytes = buffer.value
+			nonAnsiCharsInBuf = any([ord(b) > 128 for b in colContentBytes])
+			if not nonAnsiCharsInBuf:
+				return colContentBytes.decode("utf8")
+			left, top, width, height = self._getColumnLocationRaw(index)
+			displayedColContent = DisplayModelTextInfo(
+				self,
+				getattr(textInfos, "Rect", locationHelper.RectLTRB)(left, top, left + width, top + height)
+			).text
+			COL_INCOMPLETE_END = "..."
+			displayedColContent = displayedColContent.split(" ")
+			if(
+				displayedColContent[-1] == COL_INCOMPLETE_END
+				or displayedColContent[-1].endswith(COL_INCOMPLETE_END)
+				or not displayedColContent[-1]
+			):
+				displayedColContent = displayedColContent[:-1]
 			for encoding in self.POSSIBLE_ENCODINGS:
 				try:
-					return buffer.value.decode(encoding)
+					decodedColContent = colContentBytes.decode(encoding)
+					if self._displayedContentMatchesRetrieved(displayedColContent, decodedColContent):
+						return decodedColContent
+					continue
 				except UnicodeDecodeError:
 					continue
-			return buffer.decode("unicode_escape")
+			return colContentBytes.decode("unicode_escape")
 		else:
 			return None
+
+	@staticmethod
+	def _displayedContentMatchesRetrieved(screenContent, programaticContent):
+		programaticContent = programaticContent.split(" ")[:len(screenContent)]
+		return screenContent == programaticContent
 
 
 class AppModule(appModuleHandler.AppModule):
