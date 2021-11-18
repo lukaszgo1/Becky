@@ -280,18 +280,21 @@ Remove it from those which do not have children.
 			self.location.top + self.location.height
 		)
 		screenContent = DisplayModelTextInfo(obj, rect).text
-		unreadInfoFinder = u"^{}\\((\\d+)\\)$".format(self.name)
+		unreadInfoFinder = u"^{}\\((\\d+|\\+)\\)$".format(re.escape(self.name))
 		if re.match(unreadInfoFinder, screenContent):
 			return re.match(unreadInfoFinder, screenContent).group(1)
 		else:
 			if screenContent != self.name:
-				log.info("Failed to get proper displaytext. Got: {}".format(screenContent))
+				log.error("Failed to get proper displaytext. Got: {}".format(screenContent))
 			return None
 
 	def _get_description(self):
 		unreadInfo = self.unreadInfo
 		if unreadInfo:
-			return "{} unread".format(unreadInfo)
+			if unreadInfo == "+":
+				return "Contains unread messages"
+			else:
+				return "{} unread".format(unreadInfo)
 		return None
 
 
