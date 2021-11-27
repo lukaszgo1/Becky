@@ -394,9 +394,6 @@ class Message(ListItem):
 			winKernel.virtualFreeEx(processHandle, internalItem, 0, winKernel.MEM_RELEASE)
 		if buffer:
 			colContentBytes = buffer.value
-			nonAnsiCharsInBuf = any([ord(b) > 128 for b in colContentBytes])
-			if not nonAnsiCharsInBuf:
-				return colContentBytes.decode("utf8")
 			left, top, width, height = self._getColumnLocationRaw(index)
 			displayedColContent = DisplayModelTextInfo(
 				self,
