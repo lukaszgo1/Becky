@@ -394,7 +394,7 @@ class Message(ListItem):
 			winKernel.virtualFreeEx(processHandle, internalItem, 0, winKernel.MEM_RELEASE)
 		if buffer:
 			colContentBytes = buffer.value
-			left, top, width, height = self._getColumnLocationRaw(index)
+			left, top, width, height = self._getColumnLocation(index + 1)
 			displayedColContent = DisplayModelTextInfo(
 				self,
 				getattr(textInfos, "Rect", locationHelper.RectLTRB)(left, top, left + width, top + height)
