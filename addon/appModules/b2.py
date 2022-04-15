@@ -349,7 +349,7 @@ class messagesContextMenu(MenuItem):
 
 class Message(ListItem):
 
-	POSSIBLE_ENCODINGS = ("utf8", locale.getpreferredencoding(), "1251", "shift_jis")
+	POSSIBLE_ENCODINGS = ("utf8", locale.getpreferredencoding(), "1251", "shift_jis", "gb18030")
 
 	def _getColumnContentRaw(self, index):
 		buffer = None
