@@ -1,5 +1,6 @@
 from ctypes import sizeof, byref, create_string_buffer
 import locale
+import operator
 import re
 
 import six
@@ -37,16 +38,16 @@ BECKY_SCRIPT_CATEGORY = "Becky"
 
 class EnhancedGetter(object):
 
-	def __init__(self, modWithAttrs, baseAttrName, gettersToTry):
+	def __init__(self, modWithAttrs, attrCommonPrefix, alternativeNameFactories):
 		super(EnhancedGetter, self).__init__()
 		self.mod = modWithAttrs
-		self.baseAttrName = baseAttrName
-		self.gettersToTry = gettersToTry
+		self.attrCommonPrefix = attrCommonPrefix
+		self.alternativeNameFactories = alternativeNameFactories
 
 	def __getattr__(self, attrName):
-		for possibleGetter in self.gettersToTry:
+		for aliasNameMaker in self.alternativeNameFactories:
 			try:
-				return possibleGetter(self.mod, self.baseAttrName, attrName)
+				return operator.attrgetter(aliasNameMaker(self.attrCommonPrefix, attrName))(self.mod)
 			except AttributeError:
 				continue
 		raise AttributeError("Attribute {} not found!".format(attrName))
@@ -54,23 +55,22 @@ class EnhancedGetter(object):
 
 class ControlTypesCompatWrapper(object):
 
+	_ALIAS_FACTORIES = (
+		lambda attrPrefix, attrName: ".".join((attrPrefix.capitalize(), attrName.upper())),
+		lambda attrPrefix, attrName: "_".join((attrPrefix.upper(), attrName.upper()))
+	)
+
 	def __init__(self):
 		super(ControlTypesCompatWrapper, self).__init__()
 		self.Role = EnhancedGetter(
 			controlTypes,
-			"Role",
-			[
-				lambda mod, bName, name: getattr(mod, "{0}_{1}".format(bName.upper(), name)),
-				lambda mod, bName, name: getattr(getattr(mod, bName), name),
-			]
+			"role",
+			self._ALIAS_FACTORIES
 		)
 		self.State = EnhancedGetter(
 			controlTypes,
-			"State",
-			[
-				lambda mod, bName, name: getattr(mod, "{0}_{1}".format(bName.upper(), name)),
-				lambda mod, bName, name: getattr(getattr(mod, bName), name),
-			]
+			"state",
+			self._ALIAS_FACTORIES
 		)
 
 
