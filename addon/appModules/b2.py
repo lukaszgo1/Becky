@@ -2,6 +2,8 @@ from ctypes import sizeof, byref, create_string_buffer
 import locale
 import re
 
+import six
+
 import api
 import appModuleHandler
 from colors import RGB
@@ -167,10 +169,6 @@ class DanaTextInfo(EditableTextDisplayModelTextInfo):
 	minHorizontalWhitespace = 10
 
 	def _getSelectionOffsets(self):
-		try:
-			STRING_TYPE = __builtins__["basestring"]
-		except KeyError:
-			STRING_TYPE = str
 		fields = self._storyFieldsAndRects[0]
 		startOffset = None
 		endOffset = None
@@ -185,7 +183,7 @@ class DanaTextInfo(EditableTextDisplayModelTextInfo):
 				inHighlightChunk = True
 				if startOffset is None:
 					startOffset = curOffset
-			elif isinstance(item, STRING_TYPE):
+			elif isinstance(item, six.string_types):
 				try:
 					import textUtils
 					curOffset += textUtils.WideStringOffsetConverter(item).wideStringLength
