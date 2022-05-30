@@ -1,3 +1,9 @@
+# -*- coding: UTF-8 -*-
+
+# Add-on improving accessibility of Becky! Internet Mail.
+# Copyright (C) 2019-2022 Łukasz Golonka <lukasz.golonka@mailbox.org>
+# Released under GPL 2
+
 from ctypes import sizeof, byref, create_string_buffer
 import locale
 import operator
@@ -263,7 +269,7 @@ class DanaEdit(EditableTextWithoutAutoSelectDetection, Window):
 					continue
 				else:
 					ui.message("Not on a link")
-					return 
+					return
 		else:
 			gesture.send()
 
