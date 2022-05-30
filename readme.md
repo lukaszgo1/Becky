@@ -1,6 +1,9 @@
-# NVDA add-on for Becky! Internet Mail
+# NVDA add-on for Becky! Internet Mail #
 
-This plugin improves accessibility of Becky! Internet Mail. Please note that it is still work in progress.
+* Author: Łukasz Golonka <lukasz.golonka@mailbox.org>
+* NVDA compatibility: 2019.2 and beyond
+
+This plugin improves accessibility of Becky! Internet Mail. 
 
 ## Keyboard commands:
 
@@ -8,6 +11,11 @@ This plugin improves accessibility of Becky! Internet Mail. Please note that it 
 * NVDA+Shift+a - in the message composer moves focus to the list of attachments if it is visible.
 
 These shortcuts can be reassigned in the Becky category from the Input Gestures dialog
+
+## Changes for 0.3-dev:
+
+* Compatibility with NVDA 2022.1
+* Various other bug fixes
 
 ## Changes for 0.2-dev:
 * Compatibility with NVDA 2021.1
