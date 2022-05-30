@@ -215,38 +215,57 @@ class DanaEdit(EditableTextWithoutAutoSelectDetection, Window):
 
 	@staticmethod
 	def _activateURLAtPos(pos):
+		# If user configures Becky! to open links with a single click they're underlined.
+		shouldClickTwice = DanaEdit._TIMatchesCondition(pos, "underline", False)
 		oldMouseCoords = winUser.getCursorPos()
 		winUser.setCursorPos(pos.pointAtStart.x, pos.pointAtStart.y)
 		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTDOWN, 0, 0)
 		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTUP, 0, 0)
-		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTDOWN, 0, 0)
-		mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTUP, 0, 0)
+		if shouldClickTwice:
+			mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTDOWN, 0, 0)
+			mouseHandler.executeMouseEvent(winUser.MOUSEEVENTF_LEFTUP, 0, 0)
 		winUser.setCursorPos(*oldMouseCoords)
 
 	@staticmethod
-	def _isALink(pos):
-		for field in pos.getTextWithFields():
-			if (
-				isinstance(field, textInfos.FieldCommand)
-				and field.command == "formatChange"
-				and field.field.get('color', None) == RGB(red=0, green=0, blue=192)
-			):
-				return True
+	def _TIMatchesCondition(TI, attrName, expectedCondition):
+		for field in TI.getTextWithFields():
+			try:
+				if field.command == "formatChange":
+					return field.field[attrName] == expectedCondition
+			except (AttributeError, KeyError):
+				continue
 		return False
+
+	@staticmethod
+	def _isALink(pos):
+		return DanaEdit._TIMatchesCondition(pos, 'color', RGB(red=0, green=0, blue=192))
+
+	def _iterPositionsUntilEOL(self, startPos):
+		eolPos = startPos.copy()
+		eolPos.expand(textInfos.UNIT_LINE)
+		eolPos.collapse(end=True)
+		while startPos.compareEndPoints(eolPos, "startToStart") == -1:
+			startPos.expand(textInfos.UNIT_CHARACTER)
+			yield startPos
+			startPos.move(textInfos.UNIT_CHARACTER, 1)
 
 	@script(
 		gesture="kb:enter"
 	)
 	def script_urlActivate(self, gesture):
 		if self.isReadOnly:
-			carretPos = self.makeTextInfo(textInfos.POSITION_CARET)
-			carretPos.expand(textInfos.UNIT_CHARACTER)
-			if self._isALink(carretPos):
-				return self._activateURLAtPos(carretPos)
-			ui.message("Not on a link")
+			caretPos = self.makeTextInfo(textInfos.POSITION_CARET)
+			for pos in self._iterPositionsUntilEOL(caretPos):
+				if self._isALink(pos):
+					self._activateURLAtPos(pos)
+					return
+				if pos.text in "> ":
+					continue
+				else:
+					ui.message("Not on a link")
+					return 
 		else:
 			gesture.send()
-			return
 
 
 class FolderTreeViewItem(TreeViewItem):
