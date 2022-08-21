@@ -139,7 +139,7 @@ class BeckyMainFrame(IAccessible):
 class BeckyComposeFrame(IAccessible):
 
 	@script(
-		gesture="kb:NVDA+shift+a",
+		gestures=["kb(desktop):NVDA+shift+a", "kb(laptop):NVDA+shift+control+a"],
 		canPropagate=True,
 		category=BECKY_SCRIPT_CATEGORY,
 		description="Moves focus to the list of attachments if it is visible"

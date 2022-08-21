@@ -8,7 +8,7 @@ This plugin improves accessibility of Becky! Internet Mail.
 ## Keyboard commands:
 
 * NVDA+Shift+U - reports amount of all and unread messages in the current folder
-* NVDA+Shift+a - in the message composer moves focus to the list of attachments if it is visible.
+* NVDA+Shift+a (NVDA+Shift+CTRL+a in the laptop layout) - in the message composer moves focus to the list of attachments if it is visible.
 
 These shortcuts can be reassigned in the Becky category from the Input Gestures dialog
 
