@@ -1,0 +1,17 @@
+*.idb
+*.tlog
+*.user
+*.suo
+*.obj
+*.pdb
+*.dll*
+*.exp
+*.lib
+*.log
+*.ilk
+*.vcxproj.FileListAbsolute.txt
+*.db*
+*.ipch
+*.vsidx
+*.opendb
+scratch/

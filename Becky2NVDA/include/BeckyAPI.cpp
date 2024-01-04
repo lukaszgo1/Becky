@@ -89,7 +89,10 @@ BOOL CBeckyAPI::InitAPI()
 
 		LPCTSTR lpVer = GetVersion();
 		if (lstrlen(lpVer) > 7 ||
-			lstrcmp(lpVer, "2.00.06") >= 0) {
+			// original:
+			// lstrcmp(lpVer, "2.00.06") >= 0) {
+			// had to be changed to use wide string to make project compilable using Unicode.
+			lstrcmp(lpVer, L"2.00.06") >= 0) {
 			if (!SetStatus) {
 				break;
 			}

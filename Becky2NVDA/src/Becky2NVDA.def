@@ -1,0 +1,5 @@
+LIBRARY    Becky2NVDA
+EXPORTS
+	BKC_OnPlugInInfo
+	BKC_OnStart
+	BKC_OnExit
