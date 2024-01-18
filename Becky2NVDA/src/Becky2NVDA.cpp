@@ -20,6 +20,38 @@ CBeckyAPI B2_API;
 HINSTANCE library_instance;
 
 
+std::wstring get_msg_id_from_iacc_child_id(int iacc_child_id) {
+	// Documentation for `GetNextMail` is pretty limited,
+	// in particular there is no maximum length for the message ID, nor can it be retrieved  in any way.
+	// The only example in the documentation  seems to assume it cannot exceed 256 characters, so were going to follow suit.
+	const int MSG_ID_MAX_LENGTH = 256;
+	char msg_id[MSG_ID_MAX_LENGTH];
+	int next_msg_pos = B2_API.GetNextMail((iacc_child_id - 2), msg_id, MSG_ID_MAX_LENGTH, FALSE);
+	if (-1 == next_msg_pos) {
+		OutputDebugStringW(L"No next message, this is unexpected");
+		return std::wstring {};
+	}
+	if (0 == strlen(msg_id)) {
+		OutputDebugStringW(L"Message buffer too short");
+		return std::wstring {};
+	}
+	int mbyte_string_length = strlen(msg_id) + 1;
+	int w_string_length = MultiByteToWideChar(CP_ACP, 0, msg_id, mbyte_string_length, nullptr, 0);
+	std::wstring res(w_string_length, L'\0');
+	MultiByteToWideChar(CP_ACP, 0, msg_id, mbyte_string_length, &res[0], w_string_length);
+	res.resize(res.size() -1);
+	std::wostringstream s;
+	const int CP_SIZE = 256;
+	char cp[CP_SIZE];
+	int l = B2_API.GetCharSet(msg_id, cp, CP_SIZE);
+	// s << L"Return val is: " << l << L" and the following was written to the buffer: " << cp;
+	// s << L"Before conversion to unicode: " << msg_id << " after conversion: " << res.c_str();
+	OutputDebugString(s.str().c_str());
+
+	return res;
+}
+
+
 class MessageWindow
 {
 public:
@@ -33,18 +65,16 @@ private:
 	ATOM _classAtom{};
 	HWND _windowHandle{};
 	static LRESULT CALLBACK windowMsgHandler(HWND, UINT, WPARAM, LPARAM);
+	static const unsigned int WM_GET_MESSAGE_STATES = (WM_USER + 1);
+	static const unsigned int WM_GET_MESSAGE_CHARSET = (WM_USER + 2);
 
 };
 
 
 LRESULT CALLBACK MessageWindow::windowMsgHandler(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uMsg){
-	case (WM_USER + 11): {
-		CHAR msgid[256] = "alazadara";
-		int res = B2_API.GetNextMail(-1, &msgid[0], 256, FALSE);
-		std::wostringstream s;
-		s << L"Got ID: " << res << L", and message id is: " << msgid;
-		OutputDebugString(s.str().c_str());
+	case WM_GET_MESSAGE_STATES: {
+		get_msg_id_from_iacc_child_id(wParam);
 		return 13;
 		}
 	default:

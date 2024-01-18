@@ -118,10 +118,10 @@ public:
 	BOOL	(WINAPI* AppendMessage)(LPCTSTR lpFolderID, LPCTSTR lpszData);
 	int		(WINAPI* MoveMessages)(LPCTSTR lpFolderID, LPCTSTR lpMailIDSet, BOOL bCopy);
 	BOOL	(WINAPI* MoveSelectedMessages)(LPCTSTR lpFolderID, BOOL bCopy);
-	DWORD	(WINAPI* GetStatus)(LPCTSTR lpMailID);
+	DWORD	(WINAPI* GetStatus)(LPCSTR lpMailID);
 	DWORD	(WINAPI* SetStatus)(LPCTSTR lpMailID, DWORD dwSet, DWORD dwReset);
 	HWND	(WINAPI* ComposeMail)(LPCTSTR lpURL);
-	int		(WINAPI* GetCharSet)(LPCTSTR lpMailID, LPSTR lpszCharSet, int nBuf);
+	int		(WINAPI* GetCharSet)(LPCSTR lpMailID, LPSTR lpszCharSet, int nBuf);
 	LPSTR	(WINAPI* GetSource)(LPCTSTR lpMailID);
 	void	(WINAPI* SetSource)(LPCTSTR lpMailID, LPCTSTR lpSource);
 	DWORD	(WINAPI* GetSize)(LPCTSTR lpMailID);
