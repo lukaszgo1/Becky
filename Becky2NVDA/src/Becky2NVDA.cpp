@@ -1,5 +1,6 @@
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <windows.h>
 
 /*Becky's! SDK fails to compile cleanly with the default warnings level,
@@ -20,35 +21,50 @@ CBeckyAPI B2_API;
 HINSTANCE library_instance;
 
 
-std::wstring get_msg_id_from_iacc_child_id(int iacc_child_id) {
-	// Documentation for `GetNextMail` is pretty limited,
-	// in particular there is no maximum length for the message ID, nor can it be retrieved  in any way.
-	// The only example in the documentation  seems to assume it cannot exceed 256 characters, so were going to follow suit.
-	const int MSG_ID_MAX_LENGTH = 256;
-	char msg_id[MSG_ID_MAX_LENGTH];
-	int next_msg_pos = B2_API.GetNextMail((iacc_child_id - 2), msg_id, MSG_ID_MAX_LENGTH, FALSE);
-	if (-1 == next_msg_pos) {
-		OutputDebugStringW(L"No next message, this is unexpected");
-		return std::wstring {};
-	}
-	if (0 == strlen(msg_id)) {
-		OutputDebugStringW(L"Message buffer too short");
-		return std::wstring {};
-	}
-	int mbyte_string_length = strlen(msg_id) + 1;
-	int w_string_length = MultiByteToWideChar(CP_ACP, 0, msg_id, mbyte_string_length, nullptr, 0);
-	std::wstring res(w_string_length, L'\0');
-	MultiByteToWideChar(CP_ACP, 0, msg_id, mbyte_string_length, &res[0], w_string_length);
-	res.resize(res.size() -1);
+void exception_to_debugger(const std::runtime_error& exc_obj) {
 	std::wostringstream s;
-	const int CP_SIZE = 256;
-	char cp[CP_SIZE];
-	int l = B2_API.GetCharSet(msg_id, cp, CP_SIZE);
-	// s << L"Return val is: " << l << L" and the following was written to the buffer: " << cp;
-	// s << L"Before conversion to unicode: " << msg_id << " after conversion: " << res.c_str();
-	OutputDebugString(s.str().c_str());
+	s << exc_obj.what();
+	OutputDebugStringW(s.str().c_str());
+}
 
-	return res;
+
+std::string get_msg_id_from_iacc_child_id(int iacc_child_id) {
+	// Documentation for `GetNextMail` is pretty limited,
+	// in particular maximum length for the message ID is not specified, nor can it be retrieved in any way.
+	// The only example in the documentation seems to assume it cannot exceed 256 characters, so were going to follow suit.
+	const int MSG_ID_MAX_LENGTH = 256;
+	std::string msg_id(MSG_ID_MAX_LENGTH, '\0');
+	// Becky! indexes messages from 0, whereas IAccessible child ID's are 1 based.
+	// There is no function to retrieve message ID based on its index, we just ask about ID of the message after the one with a given index,
+	// hence we need to subtract first to convert IAccessible ID to tBecky!'s ID, and then once again to start with an index of a previous message.
+	int next_msg_pos = B2_API.GetNextMail((iacc_child_id - 2), msg_id.data(), MSG_ID_MAX_LENGTH, FALSE);
+	if (-1 == next_msg_pos) {
+		throw std::runtime_error("No next message, this is unexpected");
+	}
+	if (msg_id.empty()) {
+		// When buffer is too short to accomodate message ID Becky! fils it with zeros.
+		// If this will become common we can always start with `MSG_ID_MAX_LENGTH`, check if the message ID fits, and if not allocate twice that much until it does.
+		throw std::runtime_error("Message buffer too short");
+	}
+	return msg_id;
+}
+
+
+std::string get_msg_code_page(int iacc_child_id) {
+	// There is absolutely no documentation as to how long the name of the message encoding can be.
+	// Were going to assume that 256 is sufficient. There is also no way to check if it was fully retrieved,
+	// since when buffer is too short the encoding name gets truncated.
+	const int MSG_CODE_PAGE_BUFF_SIZE = 256;
+	std::string code_page_buff(MSG_CODE_PAGE_BUFF_SIZE, '\0');
+	int cp_identifier = B2_API.GetCharSet(get_msg_id_from_iacc_child_id(iacc_child_id).c_str(), code_page_buff.data(), MSG_CODE_PAGE_BUFF_SIZE);
+	if (-1 == cp_identifier) {
+		// There is no documentation as to what this error code really means, but if it is returned we failed to retrieve message's charset
+		throw std::runtime_error("GetCharSet returned -1");
+	}
+	// Becky! returns the code page both as an numeric identifier (result of `GetCharSet`) and writes its name to the passed bufer.
+	// Unfortunately the numeric representation is useless, as Becky! tries to be helpful by providing identifier of the Windows code page closest to the actual message charset.
+	// For example `1250` is returned for `ISO-8859-2`, which is incorrect.
+	return code_page_buff;
 }
 
 
@@ -74,9 +90,30 @@ private:
 LRESULT CALLBACK MessageWindow::windowMsgHandler(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uMsg){
 	case WM_GET_MESSAGE_STATES: {
-		get_msg_id_from_iacc_child_id(wParam);
-		return 13;
+		try
+		{
+			get_msg_id_from_iacc_child_id(wParam);
+			return 1;
 		}
+		catch (const std::runtime_error& e)
+		{
+			exception_to_debugger(e);
+			return 0;
+		}
+	}
+	case WM_GET_MESSAGE_CHARSET: {
+		try
+		{
+			std::string msg_code_page = get_msg_code_page(wParam);
+			strcpy_s(reinterpret_cast<char *>(lParam), (msg_code_page.size() + 1), msg_code_page.c_str());
+			return 1;
+		}
+		catch (const std::runtime_error& e)
+		{
+			exception_to_debugger(e);
+			return 0;
+		}
+	}
 	default:
 		return DefWindowProc(hwnd, uMsg, wParam, lParam);
 	}
@@ -93,7 +130,7 @@ MessageWindow::MessageWindow()
 	};
 	ATOM classRegistrationRes = RegisterClassEx(&clsInfo);
 	if (classRegistrationRes == 0) {
-		throw L"Failed to register class";
+		throw std::runtime_error("Failed to register class");
 	}
 	_classAtom = classRegistrationRes;
 	HWND windowCreationRes = CreateWindowEx(
@@ -111,7 +148,7 @@ MessageWindow::MessageWindow()
 		nullptr /*lpParam*/
 	);
 	if (!windowCreationRes) {
-		throw L"Failed to create window";
+		throw std::runtime_error("Failed to create window");
 	}
 	_windowHandle = windowCreationRes;
 }
@@ -121,13 +158,13 @@ MessageWindow::~MessageWindow()
 {
 	if (_windowHandle) {
 		if (0 == DestroyWindow(_windowHandle)) {
-			OutputDebugString(L"dfailed to destroy window\n");
+			OutputDebugStringW(L"dfailed to destroy window\n");
 		}
 		_windowHandle = nullptr;
 	}
 	if (_classAtom) {
 		if (0 == UnregisterClass(MAKEINTATOM(_classAtom), library_instance)) {
-			OutputDebugString(L"Failed to unregister class\n");
+			OutputDebugStringW(L"Failed to unregister class\n");
 		}
 		_classAtom = 0;
 	}
@@ -167,8 +204,15 @@ extern "C" int WINAPI BKC_OnPlugInInfo(tagBKPLUGININFO* lpPlugInInfo){
 
 
 extern "C" int WINAPI BKC_OnStart(){
-    MessageWindow::ensureExists();
-    return 0;
+	try
+	{
+		MessageWindow::ensureExists();
+	}
+	catch (const std::runtime_error& e)
+	{
+		exception_to_debugger(e);
+	}
+	return 0;
 }
 
 
@@ -178,7 +222,7 @@ extern "C" int WINAPI BKC_OnExit(){
 }
 
 
-BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
+BOOL APIENTRY DllMain( HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
 	{
