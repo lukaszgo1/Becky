@@ -51,12 +51,19 @@ std::string get_msg_id_from_iacc_child_id(int iacc_child_id) {
 
 
 std::string get_msg_code_page(int iacc_child_id) {
+	std::wostringstream s;
+	s << L"Id is: " << iacc_child_id;
+	OutputDebugStringW(s.str().c_str());
 	// There is absolutely no documentation as to how long the name of the message encoding can be.
 	// Were going to assume that 256 is sufficient. There is also no way to check if it was fully retrieved,
 	// since when buffer is too short the encoding name gets truncated.
 	const int MSG_CODE_PAGE_BUFF_SIZE = 256;
 	std::string code_page_buff(MSG_CODE_PAGE_BUFF_SIZE, '\0');
-	int cp_identifier = B2_API.GetCharSet(get_msg_id_from_iacc_child_id(iacc_child_id).c_str(), code_page_buff.data(), MSG_CODE_PAGE_BUFF_SIZE);
+	std::string msg_id = get_msg_id_from_iacc_child_id(iacc_child_id);
+	s = std::wostringstream();
+	s << L"Getting charset for message with id: " << msg_id.c_str();
+	OutputDebugStringW(s.str().c_str());
+	int cp_identifier = B2_API.GetCharSet(msg_id.c_str(), code_page_buff.data(), MSG_CODE_PAGE_BUFF_SIZE);
 	if (-1 == cp_identifier) {
 		// There is no documentation as to what this error code really means, but if it is returned we failed to retrieve message's charset
 		throw std::runtime_error("GetCharSet returned -1");
@@ -64,6 +71,9 @@ std::string get_msg_code_page(int iacc_child_id) {
 	// Becky! returns the code page both as an numeric identifier (result of `GetCharSet`) and writes its name to the passed bufer.
 	// Unfortunately the numeric representation is useless, as Becky! tries to be helpful by providing identifier of the Windows code page closest to the actual message charset.
 	// For example `1250` is returned for `ISO-8859-2`, which is incorrect.
+	s = std::wostringstream();
+	s << L"Result code is: " << cp_identifier << L" and code page name is: " << code_page_buff.c_str() << L" the end";
+	OutputDebugStringW(s.str().c_str());
 	return code_page_buff;
 }
 

@@ -372,9 +372,35 @@ class messagesContextMenu(MenuItem):
 
 class Message(ListItem):
 
+	"""Represents single list item in the message list.
+
+	This class is also used for list of mailbox profiles,
+	however this is only because differentiating between these two cases
+	at the time classes are applied turns out to be unnecessarily hard.
+	Becky!'s list view is custom drawn ANSI control,
+	where actual column content is added to the list
+	no matter if it can be decoded using current Windows ANSI encoding or not.
+	This works well for sighted people,
+	since the content is overidden on the screen with the properly decoded data afterwards,
+	but it cannot be accessed programatically.
+	Using DisplayModel results in only part of the column being announced,
+	as they don't fit on the screen in their entirety.
+	Expanding them to their full width makes it impossible to access columbn headers for sorting,
+	so below work around is necessary.
+	"""
+
 	POSSIBLE_ENCODINGS = ("utf8", locale.getpreferredencoding(), "1251", "shift_jis", "gb18030")
 
-	def _getColumnContentRaw(self, index):
+	def _getColumnBytes(self, index):
+		"""Retrieves actual content of the given column as bytes.
+
+		When retrieving content of a given column, NVDA gets the data which is already decoded by Windows.
+		In case of Becky!'s list view it is decoded using current code page for non-Unicode programs,
+		which is often wrong, as most mail messages use different encoding.
+		Sadly after this decoding content is irretrievably damaged.
+		We follow a similar logic to the one used in NVDA by default,
+		but retrieve the content before it is being decoded i.e. as raw bytes.
+		"""
 		buffer = None
 		processHandle = self.processHandle
 		internalItem = winKernel.virtualAllocEx(
@@ -415,45 +441,97 @@ class Message(ListItem):
 				winKernel.virtualFreeEx(processHandle, internalText, 0, winKernel.MEM_RELEASE)
 		finally:
 			winKernel.virtualFreeEx(processHandle, internalItem, 0, winKernel.MEM_RELEASE)
-		if buffer:
-			colContentBytes = buffer.value
-			left, top, width, height = self._getColumnLocationRaw(index)
-			displayedColContent = DisplayModelTextInfo(
-				self,
-				getattr(textInfos, "Rect", locationHelper.RectLTRB)(left, top, left + width, top + height)
-			).text
-			COL_INCOMPLETE_END = "..."
-			if u'\uffff' in displayedColContent:
-				displayedColContent = []
-			else:
-				displayedColContent = displayedColContent.split(" ")
-				if(
-					displayedColContent[-1] == COL_INCOMPLETE_END
-					or displayedColContent[-1].endswith(COL_INCOMPLETE_END)
-					or not displayedColContent[-1]
-				):
-					displayedColContent = displayedColContent[:-1]
-			for encoding in self.POSSIBLE_ENCODINGS:
-				try:
-					decodedColContent = colContentBytes.decode(encoding)
-					if self._displayedContentMatchesRetrieved(displayedColContent, decodedColContent):
-						return decodedColContent
-					continue
-				except UnicodeDecodeError:
-					continue
-			try:
-				return colContentBytes.decode("utf8")
-			except UnicodeDecodeError:
-				return colContentBytes.decode("unicode_escape")
-		else:
-			return None
+		return buffer
 
-	@staticmethod
-	def _displayedContentMatchesRetrieved(screenContent, programaticContent):
-		if screenContent:
-			programaticContent = programaticContent.split(" ")[:len(screenContent)]
-			return screenContent == programaticContent
-		return True
+	def _getDecodedColContentFromDisplayModel(self, colData, colIndex):
+		"""Older method for guessing code page of the given list item.
+
+		Used when the real code page cannot be retrieved from Becky!
+		when support plugin is not installed,
+		communication with the plugin failed or the code page it returned is unknown.
+		While the approach below is mostly accurate,
+		it will not work when characters outside ASCII range don't fit on the screen,
+		in that case we cannot verify if whatever we got after decoding matches the custom drawn content.
+		"""
+		left, top, width, height = self._getColumnLocationRaw(colIndex)
+		displayedColContent = DisplayModelTextInfo(
+			self,
+			getattr(textInfos, "Rect", locationHelper.RectLTRB)(left, top, left + width, top + height)
+		).text
+		COL_INCOMPLETE_END = "..."
+		if u'\uffff' in displayedColContent:
+			# Column contains character which cannot be represented in the current fon,
+			# and has been replaced with the Unicode replacement character.
+			# this means that the drawn content cannot be trusted when comparing, so were not going to bother.
+			compareWithDisplayed = False
+		else:
+			compareWithDisplayed = True
+			displayedColContent = displayedColContent.split(" ")
+			# When comparing use only the part of the column which was written to the screen,
+			# i.e. eliminate the last word if it is truncated.
+			if(
+				displayedColContent[-1].endswith(COL_INCOMPLETE_END)
+				or not displayedColContent[-1]
+			):
+				displayedColContent = displayedColContent[:-1]
+		for encoding in self.POSSIBLE_ENCODINGS:
+			try:
+				log.info("Trying with code page: {} and data is: {}".format(encoding, colData))
+				decodedColContent = colData.decode(encoding)
+				if compareWithDisplayed:
+					programaticContent = decodedColContent.split(" ")[:len(displayedColContent)]
+					if programaticContent != displayedColContent:
+						continue
+				return decodedColContent
+			except UnicodeDecodeError:
+				continue
+		try:
+			return colData.decode("utf8")
+		except UnicodeDecodeError:
+			return colData.decode("unicode_escape")
+
+	def _getCodePageFromPlugIn(self):
+		try:
+			h = winUser.FindWindow(u"becky2nvda", u"becky2nvda")
+		except WindowsError:
+			return None
+		msgCharsetBuff = create_string_buffer(256)
+		internalBuf = winKernel.virtualAllocEx(
+			self.processHandle,
+			None,
+			len(msgCharsetBuff),
+			winKernel.MEM_COMMIT,
+			winKernel.PAGE_READWRITE
+		)
+		try:
+			msgRes = watchdog.cancellableSendMessage(h, (winUser.WM_USER + 2), self.IAccessibleChildID, internalBuf)
+			log.info("Return code is: {}".format(msgRes))
+			winKernel.readProcessMemory(self.processHandle, internalBuf, msgCharsetBuff, len(msgCharsetBuff), None)
+		finally:
+			winKernel.virtualFreeEx(self.processHandle, internalBuf, 0, winKernel.MEM_RELEASE)
+		return msgCharsetBuff.value.decode("ansi")
+
+	def _getColumnContentRaw(self, index):
+		colContent = self._getColumnBytes(index)
+		if not colContent:
+			return None
+		colContentBytes = colContent.value
+		if all(ch < 129 for ch in colContentBytes):
+			return colContentBytes.decode("ascii")
+		codePage = self._getCodePageFromPlugIn()
+		log.info("Code page is: {0} and its length is:  {1}".format(codePage, len(codePage)))
+		if codePage is not None:
+			try:
+				if codePage == "":
+					raise ValueError
+				return colContentBytes.decode(codePage)
+			except LookupError:
+				log.error("message specifies code page unknown to Python: {}".format(codePage))
+			except UnicodeDecodeError:
+				log.error("Failed to decode column content.", exc_info=True)
+			except ValueError:
+				log.error("Message not yet loaded, using screen content.")
+		return self._getDecodedColContentFromDisplayModel(colContentBytes, index)
 
 
 class AppModule(appModuleHandler.AppModule):
