@@ -122,13 +122,13 @@ public:
 	DWORD	(WINAPI* SetStatus)(LPCTSTR lpMailID, DWORD dwSet, DWORD dwReset);
 	HWND	(WINAPI* ComposeMail)(LPCTSTR lpURL);
 	int		(WINAPI* GetCharSet)(LPCSTR lpMailID, LPSTR lpszCharSet, int nBuf);
-	LPSTR	(WINAPI* GetSource)(LPCTSTR lpMailID);
+	LPSTR	(WINAPI* GetSource)(LPCSTR lpMailID);
 	void	(WINAPI* SetSource)(LPCTSTR lpMailID, LPCTSTR lpSource);
 	DWORD	(WINAPI* GetSize)(LPCTSTR lpMailID);
-	LPSTR	(WINAPI* GetHeader)(LPCTSTR lpMailID);
+	LPSTR	(WINAPI* GetHeader)(LPCSTR lpMailID);
 	LPSTR	(WINAPI* GetText)(LPSTR lpszMimeType, int nBuf);
 	void	(WINAPI* SetText)(int nMode, LPCTSTR lpText);
-	void	(WINAPI* GetSpecifiedHeader)(LPCTSTR lpHeader, LPSTR lpszData, int nBuf);
+	void	(WINAPI* GetSpecifiedHeader)(LPCSTR lpHeader, LPSTR lpszData, int nBuf);
 	void	(WINAPI* SetSpecifiedHeader)(LPCTSTR lpHeader, LPCTSTR lpszData);
 	int		(WINAPI* CompGetCharSet)(HWND hWnd, LPSTR lpszCharSet, int nBuf);
 	LPSTR	(WINAPI* CompGetSource)(HWND hWnd);

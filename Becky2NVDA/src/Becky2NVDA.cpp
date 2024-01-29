@@ -102,7 +102,13 @@ LRESULT CALLBACK MessageWindow::windowMsgHandler(HWND hwnd, UINT uMsg, WPARAM wP
 	case WM_GET_MESSAGE_STATES: {
 		try
 		{
-			get_msg_id_from_iacc_child_id(wParam);
+			OutputDebugString(L"Received get header msg.");
+			const std::string msg_id = get_msg_id_from_iacc_child_id(wParam);
+// 			std::string from_data = std::string(1024,  '\0');
+// 			B2_API.GetSpecifiedHeader("From", from_data.data(), 1024);
+			std::wostringstream s;
+			s << L"From data is: " << B2_API.GetHeader(msg_id.c_str());
+			OutputDebugString(s.str().c_str());
 			return 1;
 		}
 		catch (const std::runtime_error& e)
