@@ -50,31 +50,44 @@ std::string get_msg_id_from_iacc_child_id(int iacc_child_id) {
 }
 
 
-std::string get_msg_code_page(int iacc_child_id) {
+int get_msg_code_page(int iacc_child_id) {
+	/*
+	* Tries to retrieve code page from the message with given ID.
+	* It was assumed that it will allow us to get the encoding of mail headers,
+	* but API just returns code page of message's body, which we don't care about.
+	* While normally these encodings should be the same, they are not way too often making this approach impractical.
+	* `GetCharSet` also  fails to retrieve code page from multipart messages where each of the parts uses different encoding
+	* and in cases where the entire message was not yet downloaded.
+	* We tried some alternatives, none of which were workable:
+	* - Retrieve specific headers we care about using `GetSpecifiedHeader` and then get a code page from it - does not work for messages other than the currently focused one
+	* - Use `GetHeader` to fetch all headers and retrieve code page name from them - returned headers are already decoded, so information about what code page they were using is lost
+	* - Fetch the entire message source with `GetSource` and parse to retrieve code page - works only for fully downloaded messages
+	* Given the above this was an interesting exercise in C++, but nothing usable come out of it.
+	*/
 	std::wostringstream s;
-	s << L"Id is: " << iacc_child_id;
-	OutputDebugStringW(s.str().c_str());
 	// There is absolutely no documentation as to how long the name of the message encoding can be.
 	// Were going to assume that 256 is sufficient. There is also no way to check if it was fully retrieved,
 	// since when buffer is too short the encoding name gets truncated.
 	const int MSG_CODE_PAGE_BUFF_SIZE = 256;
 	std::string code_page_buff(MSG_CODE_PAGE_BUFF_SIZE, '\0');
-	std::string msg_id = get_msg_id_from_iacc_child_id(iacc_child_id);
-	s = std::wostringstream();
-	s << L"Getting charset for message with id: " << msg_id.c_str();
-	OutputDebugStringW(s.str().c_str());
+	const std::string msg_id = get_msg_id_from_iacc_child_id(iacc_child_id);
 	int cp_identifier = B2_API.GetCharSet(msg_id.c_str(), code_page_buff.data(), MSG_CODE_PAGE_BUFF_SIZE);
 	if (-1 == cp_identifier) {
 		// There is no documentation as to what this error code really means, but if it is returned we failed to retrieve message's charset
 		throw std::runtime_error("GetCharSet returned -1");
 	}
-	// Becky! returns the code page both as an numeric identifier (result of `GetCharSet`) and writes its name to the passed bufer.
-	// Unfortunately the numeric representation is useless, as Becky! tries to be helpful by providing identifier of the Windows code page closest to the actual message charset.
-	// For example `1250` is returned for `ISO-8859-2`, which is incorrect.
-	s = std::wostringstream();
-	s << L"Result code is: " << cp_identifier << L" and code page name is: " << code_page_buff.c_str() << L" the end";
-	OutputDebugStringW(s.str().c_str());
-	return code_page_buff;
+	// Becky! returns the code page both as an numeric identifier (result of `GetCharSet`) and writes its name to the passed buffer.
+	// While name of the code page reflects the real code page as specified in the message source,
+	// Becky! apparently does some decoding of her own, so content of the message headers in the list view
+	// is encoded using a Windows code page whose identifier is returned from `GetCharSet`.
+	// The only cases in which code page name is useful for us is to verify that we didn't ask for message which has not yet been downloaded,
+	// nor for an one with multiple parts, each specifying their own code page.
+	// In these cases Becky! returns an empty name,
+	// yet the numeric code page identifier returned is the default  ANSI code page set in Windows properties.
+	if (code_page_buff.empty()) {
+		throw std::runtime_error("Got empty code page name.");
+	}
+	return cp_identifier;
 }
 
 
@@ -91,7 +104,6 @@ private:
 	ATOM _classAtom{};
 	HWND _windowHandle{};
 	static LRESULT CALLBACK windowMsgHandler(HWND, UINT, WPARAM, LPARAM);
-	static const unsigned int WM_GET_MESSAGE_STATES = (WM_USER + 1);
 	static const unsigned int WM_GET_MESSAGE_CHARSET = (WM_USER + 2);
 
 };
@@ -99,30 +111,10 @@ private:
 
 LRESULT CALLBACK MessageWindow::windowMsgHandler(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uMsg){
-	case WM_GET_MESSAGE_STATES: {
-		try
-		{
-			OutputDebugString(L"Received get header msg.");
-			const std::string msg_id = get_msg_id_from_iacc_child_id(wParam);
-// 			std::string from_data = std::string(1024,  '\0');
-// 			B2_API.GetSpecifiedHeader("From", from_data.data(), 1024);
-			std::wostringstream s;
-			s << L"From data is: " << B2_API.GetHeader(msg_id.c_str());
-			OutputDebugString(s.str().c_str());
-			return 1;
-		}
-		catch (const std::runtime_error& e)
-		{
-			exception_to_debugger(e);
-			return 0;
-		}
-	}
 	case WM_GET_MESSAGE_CHARSET: {
 		try
 		{
-			std::string msg_code_page = get_msg_code_page(wParam);
-			strcpy_s(reinterpret_cast<char *>(lParam), (msg_code_page.size() + 1), msg_code_page.c_str());
-			return 1;
+			return get_msg_code_page(wParam);
 		}
 		catch (const std::runtime_error& e)
 		{

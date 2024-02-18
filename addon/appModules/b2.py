@@ -491,25 +491,11 @@ class Message(ListItem):
 			return colData.decode("unicode_escape")
 
 	def _getCodePageFromPlugIn(self):
-		try:
-			h = winUser.FindWindow(u"becky2nvda", u"becky2nvda")
-		except WindowsError:
-			return None
-		msgCharsetBuff = create_string_buffer(256)
-		internalBuf = winKernel.virtualAllocEx(
-			self.processHandle,
-			None,
-			len(msgCharsetBuff),
-			winKernel.MEM_COMMIT,
-			winKernel.PAGE_READWRITE
-		)
-		try:
-			msgRes = watchdog.cancellableSendMessage(h, (winUser.WM_USER + 2), self.IAccessibleChildID, internalBuf)
-			log.info("Return code is: {}".format(msgRes))
-			winKernel.readProcessMemory(self.processHandle, internalBuf, msgCharsetBuff, len(msgCharsetBuff), None)
-		finally:
-			winKernel.virtualFreeEx(self.processHandle, internalBuf, 0, winKernel.MEM_RELEASE)
-		return msgCharsetBuff.value.decode("ansi")
+		h = winUser.FindWindow(u"becky2nvda", u"becky2nvda")
+		msgRes = watchdog.cancellableSendMessage(h, (winUser.WM_USER + 2), self.IAccessibleChildID, 0)
+		if msgRes == 0:
+			raise RuntimeError("Failed to retrieve code page")
+		return msgRes
 
 	def _getColumnContentRaw(self, index):
 		colContent = self._getColumnBytes(index)
@@ -518,19 +504,19 @@ class Message(ListItem):
 		colContentBytes = colContent.value
 		if all(ch < 129 for ch in colContentBytes):
 			return colContentBytes.decode("ascii")
-		codePage = self._getCodePageFromPlugIn()
-		log.info("Code page is: {0} and its length is:  {1}".format(codePage, len(codePage)))
-		if codePage is not None:
-			try:
-				if codePage == "":
-					raise ValueError
-				return colContentBytes.decode(codePage)
-			except LookupError:
-				log.error("message specifies code page unknown to Python: {}".format(codePage))
-			except UnicodeDecodeError:
-				log.error("Failed to decode column content.", exc_info=True)
-			except ValueError:
-				log.error("Message not yet loaded, using screen content.")
+		try:
+			codePage = self._getCodePageFromPlugIn()
+			codePage = str({
+				65001: "utf8",
+				65000: "utf7"
+			}.get(codePage, codePage))
+			return colContentBytes.decode(codePage)
+		except WindowsError:
+			log.error("Failed to find message window", exc_info=True)
+		except LookupError:
+			log.error("message specifies code page unknown to Python: {}".format(codePage))
+		except UnicodeDecodeError:
+			log.error("Failed to decode column content.", exc_info=True)
 		return self._getDecodedColContentFromDisplayModel(colContentBytes, index)
 
 
