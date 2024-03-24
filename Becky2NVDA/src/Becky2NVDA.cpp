@@ -1,24 +1,36 @@
+
+/*
+TODO:
+Finish the api class
+make window reusable and subscribe for messages
+get rid of the .def file
+
+*/
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <windows.h>
 
-/*Becky's! SDK fails to compile cleanly with the default warnings level,
-* since all members of `CBeckyApi` are initialized in `InitAPI`, rather than in the constructor
-* which causes warning 'C26495: 'Variable 'variable' is uninitialized. Always initialize a member variable (type.6).'.
-* This code is not ours, so disable this warning temporarily.
-*/
-#pragma warning( push )
-#pragma warning( disable : 26495)
-
-#include "..\include\BeckyApi.h"
-
-#pragma warning( pop ) 
-
-
-CBeckyAPI B2_API;
+#include "BeckyAPIFunc.h"
 
 HINSTANCE library_instance;
+
+/*
+While Becky!'s API has a C++ SDK, it is not useful for our purposes.
+There are two problems with it:
+- It fails to compile in Unicode builds and with the highest warnings level
+- More importantly parameter and return types of its function are correct only in ANSI builds,
+i.e. `LPCTSTR` is specified for functions accepting `const char`.
+For Unicode builds this type definition gets converted to `const wchar*` which does not reflect the type accepted by the underlying Becky! Function.
+Since we need only a few functions, we will just retrieve them ourselves.
+
+*/
+
+
+using _GetNextMail_T = int (__stdcall*)(int nStart, char* lpszMailID, int nBuf, bool bSelected);
+using _GetCharSet_T = int(__stdcall*)(const char * lpMailID, char* lpszCharSet, int nBuf);
+const auto  getCharSet  = BeckyAPIFunc<_GetCharSet_T>{"BKA_GetCharSet"}.getFuncPointer();
+const auto getNextMail = BeckyAPIFunc<_GetNextMail_T>{ "BKA_GetNextMail"}.getFuncPointer();
 
 
 void exception_to_debugger(const std::runtime_error& exc_obj) {
@@ -37,7 +49,7 @@ std::string get_msg_id_from_iacc_child_id(int iacc_child_id) {
 	// Becky! indexes messages from 0, whereas IAccessible child ID's are 1 based.
 	// There is no function to retrieve message ID based on its index, we just ask about ID of the message after the one with a given index,
 	// hence we need to subtract first to convert IAccessible ID to tBecky!'s ID, and then once again to start with an index of a previous message.
-	int next_msg_pos = B2_API.GetNextMail((iacc_child_id - 2), msg_id.data(), MSG_ID_MAX_LENGTH, FALSE);
+		int next_msg_pos = getNextMail((iacc_child_id - 2), msg_id.data(), MSG_ID_MAX_LENGTH, false);
 	if (-1 == next_msg_pos) {
 		throw std::runtime_error("No next message, this is unexpected");
 	}
@@ -64,14 +76,13 @@ int get_msg_code_page(int iacc_child_id) {
 	* - Fetch the entire message source with `GetSource` and parse to retrieve code page - works only for fully downloaded messages
 	* Given the above this was an interesting exercise in C++, but nothing usable come out of it.
 	*/
-	std::wostringstream s;
 	// There is absolutely no documentation as to how long the name of the message encoding can be.
 	// Were going to assume that 256 is sufficient. There is also no way to check if it was fully retrieved,
 	// since when buffer is too short the encoding name gets truncated.
 	const int MSG_CODE_PAGE_BUFF_SIZE = 256;
 	std::string code_page_buff(MSG_CODE_PAGE_BUFF_SIZE, '\0');
 	const std::string msg_id = get_msg_id_from_iacc_child_id(iacc_child_id);
-	int cp_identifier = B2_API.GetCharSet(msg_id.c_str(), code_page_buff.data(), MSG_CODE_PAGE_BUFF_SIZE);
+	int cp_identifier = getCharSet(msg_id.c_str(), code_page_buff.data(), MSG_CODE_PAGE_BUFF_SIZE);
 	if (-1 == cp_identifier) {
 		// There is no documentation as to what this error code really means, but if it is returned we failed to retrieve message's charset
 		throw std::runtime_error("GetCharSet returned -1");
@@ -230,12 +241,12 @@ extern "C" int WINAPI BKC_OnExit(){
 }
 
 
-BOOL APIENTRY DllMain( HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
+BOOL APIENTRY DllMain( HMODULE hModule, DWORD ul_reason_for_call, [[maybe_unused]] LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH: {
-		if (B2_API.InitAPI()) {
+		if (true) { // B2_API.InitAPI()) {
 			library_instance = hModule;
 			return TRUE;
 		}
