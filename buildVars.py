@@ -29,7 +29,9 @@ addon_info = {
 	# Author(s)
 	"addon_author": u"Łukasz Golonka <lukasz.golonka@mailbox.org>",
 	# URL for the add-on documentation support
-	"addon_url": None,
+	"addon_url": "https://github.com/lukaszgo1/Becky/",
+	# URL for the add-on repository where the source code can be found
+	"addon_sourceURL": "https://github.com/lukaszgo1/Becky/",
 	# Documentation file name
 	"addon_docFileName": "readme.html",
 	# Minimum NVDA version supported (e.g. "2018.3.0", minor version is optional)
@@ -40,6 +42,10 @@ addon_info = {
 	# and for development releases, use "dev".)
 	# Do not change unless you know what you are doing!
 	"addon_updateChannel": "dev",
+	# Add-on license such as GPL 2
+	"addon_license": "GPL v2",
+	# URL for the license document the ad-on is licensed under
+	"addon_licenseURL": "https://www.gnu.org/licenses/gpl-2.0.html",
 }
 
 # Define the python files that are the sources of your add-on.
@@ -68,5 +74,5 @@ baseLanguage = "en"
 # Most add-ons do not require additional Markdown extensions.
 # If you need to add support for markup such as tables, fill out the below list.
 # Extensions string must be of the form "markdown.extensions.extensionName"
-# e.g. markdown.extensions.tables to add tables.
+# e.g. "markdown.extensions.tables" to add tables.
 markdownExtensions = []
